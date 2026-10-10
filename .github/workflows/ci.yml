@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile:
+    name: Mobile (lint, format, types, tests, bundle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Lint, format check, type check and tests
+        run: npm run check
+      - name: Build the iOS and Android bundles
+        run: npm run build:check
+        env:
+          CI: '1'
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Needed to list a pull request's commits.
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Report findings in the job log only; this job is not allowed to write PR comments.
+          GITLEAKS_ENABLE_COMMENTS: 'false'
